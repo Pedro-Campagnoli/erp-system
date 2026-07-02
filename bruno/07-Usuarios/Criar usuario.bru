@@ -1,0 +1,32 @@
+meta {
+  name: Criar usuário
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/usuarios
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nome": "Operador",
+    "email": "{{operadorEmail}}",
+    "senha": "{{operadorSenha}}"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.id) {
+    bru.setEnvVar("usuarioId", res.body.id);
+  }
+}
+
+docs {
+  Exige a permissão `cadastros.usuarios.criar`. Cria o usuário sem acesso a
+  nenhuma loja ainda — conceda acesso em
+  `07-Usuarios/acessos > Conceder acesso a loja`. Sobrescreve `{{usuarioId}}`
+  (salvo antes pelo signup) com o novo usuário criado.
+}

@@ -1,0 +1,30 @@
+meta {
+  name: Criar usuário descartável (para exclusão)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/usuarios
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nome": "Usuário Descartável",
+    "email": "descartavel@lojaexemplo.com",
+    "senha": "senha123"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.id) {
+    bru.setEnvVar("usuarioDescartavelId", res.body.id);
+  }
+}
+
+docs {
+  `{{usuarioId}}` é reaproveitado depois em `08-Acessos`, então a exclusão
+  usa um usuário separado para não quebrar esse fluxo.
+}

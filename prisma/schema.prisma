@@ -1,0 +1,242 @@
+// Prisma schema — ERP multi-tenant (Empresa > Loja > Usuário)
+// Módulos fiscal, financeiro e inventário serão adicionados como novos
+// blocos de modelos neste mesmo schema, todos referenciando Empresa/Loja
+// para manter o isolamento de tenant.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Billing / Planos
+// ---------------------------------------------------------------------------
+
+model Plano {
+  id             String   @id @default(uuid())
+  nome           String   @unique
+  slug           String   @unique
+  descricao      String?
+  precoMensal    Decimal  @db.Decimal(10, 2)
+  limiteLojas    Int? // null = ilimitado
+  limiteUsuarios Int? // null = ilimitado
+  recursos       Json? // feature flags do plano, ex.: { "fiscal": true, "financeiro": true }
+  ativo          Boolean  @default(true)
+
+  empresas Empresa[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("planos")
+}
+
+enum StatusAssinatura {
+  TRIAL
+  ATIVA
+  INADIMPLENTE
+  CANCELADA
+  SUSPENSA
+}
+
+// ---------------------------------------------------------------------------
+// Tenant raiz: Empresa
+// ---------------------------------------------------------------------------
+
+model Empresa {
+  id                   String           @id @default(uuid())
+  cnpj                 String           @unique
+  razaoSocial          String
+  nomeFantasia         String?
+  inscricaoEstadual    String?
+  email                String
+  telefone             String?
+  endereco             Json?
+  ativo                Boolean          @default(true)
+  statusAssinatura     StatusAssinatura @default(TRIAL)
+  dataInicioAssinatura DateTime         @default(now())
+  dataFimTrial         DateTime?
+  dataProximaCobranca  DateTime?
+
+  planoId String
+  plano   Plano  @relation(fields: [planoId], references: [id])
+
+  lojas    Loja[]
+  usuarios Usuario[]
+  papeis   Papel[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("empresas")
+}
+
+// ---------------------------------------------------------------------------
+// Loja (unidade/filial de uma Empresa)
+// ---------------------------------------------------------------------------
+
+enum TipoLoja {
+  MATRIZ
+  FILIAL
+}
+
+model Loja {
+  id                String   @id @default(uuid())
+  codigo            String
+  nome              String
+  tipo              TipoLoja @default(FILIAL)
+  cnpj              String?
+  inscricaoEstadual String?
+  email             String?
+  telefone          String?
+  endereco          Json?
+  ativo             Boolean  @default(true)
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  usuarioLojas UsuarioLoja[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId])
+  @@map("lojas")
+}
+
+// ---------------------------------------------------------------------------
+// Usuário
+// ---------------------------------------------------------------------------
+
+model Usuario {
+  id            String    @id @default(uuid())
+  nome          String
+  email         String    @unique
+  senha         String
+  telefone      String?
+  ativo         Boolean   @default(true)
+  // superAdmin tem acesso a todas as lojas da própria empresa, sem precisar
+  // de um vínculo explícito em UsuarioLoja para cada uma.
+  superAdmin    Boolean   @default(false)
+  ultimoLoginEm DateTime?
+
+  empresaId String
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  usuarioLojas  UsuarioLoja[]
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([empresaId])
+  @@map("usuarios")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([usuarioId])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Permissões / Acesso (RBAC por Papel, vínculo Usuário<->Loja)
+// ---------------------------------------------------------------------------
+
+enum ModuloSistema {
+  ADMIN
+  CADASTROS
+  FISCAL
+  FINANCEIRO
+  ESTOQUE
+  VENDAS
+}
+
+// Catálogo global de permissões (seed), ex.: "fiscal.nfe.emitir"
+model Permissao {
+  id        String        @id @default(uuid())
+  codigo    String        @unique
+  modulo    ModuloSistema
+  descricao String
+
+  papeis PapelPermissao[]
+
+  createdAt DateTime @default(now())
+
+  @@map("permissoes")
+}
+
+// Papel (role) pertence a uma Empresa (custom) ou é global quando
+// empresaId é nulo (papéis padrão do sistema, criados via seed).
+model Papel {
+  id        String  @id @default(uuid())
+  nome      String
+  descricao String?
+  sistema   Boolean @default(false)
+
+  empresaId String?
+  empresa   Empresa? @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  permissoes   PapelPermissao[]
+  usuarioLojas UsuarioLoja[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Nota: como empresaId é anulável, esse índice único não impede nomes
+  // duplicados entre papéis globais (empresaId = null) — cada NULL é distinto
+  // para o Postgres. A checagem de duplicidade de papéis de sistema é feita
+  // em código (ver prisma/seed.ts).
+  @@unique([empresaId, nome])
+  @@map("papeis")
+}
+
+model PapelPermissao {
+  papelId String
+  papel   Papel @relation(fields: [papelId], references: [id], onDelete: Cascade)
+
+  permissaoId String
+  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  @@id([papelId, permissaoId])
+  @@map("papel_permissoes")
+}
+
+// Vínculo de acesso: em quais lojas um usuário atua e com qual papel.
+model UsuarioLoja {
+  id    String  @id @default(uuid())
+  ativo Boolean @default(true)
+
+  usuarioId String
+  usuario   Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  lojaId String
+  loja   Loja   @relation(fields: [lojaId], references: [id], onDelete: Cascade)
+
+  papelId String
+  papel   Papel  @relation(fields: [papelId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([usuarioId, lojaId])
+  @@index([lojaId])
+  @@map("usuario_lojas")
+}

@@ -1,0 +1,26 @@
+meta {
+  name: Listar planos
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/planos
+  body: none
+  auth: none
+}
+
+script:post-response {
+  if (res.body && res.body.length > 0) {
+    const profissional = res.body.find((p) => p.slug === "profissional");
+    bru.setEnvVar("planoId", (profissional || res.body[0]).id);
+  }
+}
+
+docs {
+  Rota pública. Usada na tela de cadastro de uma nova empresa para escolher
+  um plano. O script salva o id do plano "Profissional" (limite de 5 lojas)
+  em `planoId` — usado no signup da empresa em `02-Empresas`. Escolhido de
+  propósito em vez do "Básico" (limite de 1 loja) para que a criação de
+  filial em `04-Lojas` funcione sem precisar trocar de plano manualmente.
+}

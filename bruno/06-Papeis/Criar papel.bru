@@ -1,0 +1,31 @@
+meta {
+  name: Criar papel
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/papeis
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nome": "Financeiro",
+    "descricao": "Acesso ao módulo financeiro",
+    "permissoesIds": ["{{permissaoId}}"]
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.id) {
+    bru.setEnvVar("papelId", res.body.id);
+  }
+}
+
+docs {
+  Exige a permissão `cadastros.papeis.gerenciar`. Rode
+  `05-Permissoes > Listar catálogo de permissões` antes para preencher
+  `{{permissaoId}}`. Salva o id do papel criado em `{{papelId}}`.
+}

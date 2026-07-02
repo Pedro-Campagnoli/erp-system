@@ -1,0 +1,22 @@
+meta {
+  name: Buscar loja por id
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/lojas/{{lojaId}}
+  body: none
+  auth: inherit
+}
+
+headers {
+  ~x-loja-id: {{filialId}}
+}
+
+docs {
+  O header `x-loja-id` (desabilitado por padrão) define a loja de contexto
+  da requisição. Habilite-o e troque para `{{filialId}}` com o token do
+  usuário "Operador" (criado em `07-Usuarios`) para ver o `LojaAccessGuard`
+  bloquear o acesso com 403.
+}

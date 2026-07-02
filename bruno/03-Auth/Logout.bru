@@ -1,0 +1,22 @@
+meta {
+  name: Logout
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/auth/logout
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}"
+  }
+}
+
+docs {
+  `refreshToken` no body é opcional: se omitido, revoga todos os refresh
+  tokens ativos do usuário (logout em todos os dispositivos).
+}

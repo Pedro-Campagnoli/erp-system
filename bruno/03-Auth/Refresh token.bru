@@ -1,0 +1,31 @@
+meta {
+  name: Refresh token
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/auth/refresh
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "refreshToken": "{{refreshToken}}"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.accessToken) {
+    bru.setEnvVar("accessToken", res.body.accessToken);
+    bru.setEnvVar("refreshToken", res.body.refreshToken);
+  }
+}
+
+docs {
+  O refresh token é rotacionado a cada uso: o antigo é revogado e um novo
+  par de tokens é emitido. Rodar esta requisição duas vezes seguidas com o
+  mesmo `refreshToken` salvo (sem deixar o script atualizar a env) resulta
+  em 401 na segunda vez — isso é esperado.
+}

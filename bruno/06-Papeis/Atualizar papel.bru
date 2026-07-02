@@ -1,0 +1,22 @@
+meta {
+  name: Atualizar papel
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/papeis/{{papelId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "descricao": "Acesso completo ao módulo financeiro"
+  }
+}
+
+docs {
+  Papéis padrão do sistema (empresaId nulo) não podem ser editados — retorna
+  403 nesse caso.
+}

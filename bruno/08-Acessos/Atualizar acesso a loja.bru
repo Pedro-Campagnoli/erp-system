@@ -1,0 +1,22 @@
+meta {
+  name: Atualizar acesso a loja
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/usuarios/{{usuarioId}}/lojas/{{lojaId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "ativo": true
+  }
+}
+
+docs {
+  Exige a permissão `cadastros.acessos.gerenciar`. Aceita `papelId` e/ou
+  `ativo`.
+}

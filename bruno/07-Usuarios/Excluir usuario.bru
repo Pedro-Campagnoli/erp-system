@@ -1,0 +1,17 @@
+meta {
+  name: Excluir usuário
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{baseUrl}}/usuarios/{{usuarioDescartavelId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Exige a permissão `cadastros.usuarios.excluir`. É um soft delete (`ativo:
+  false`, `deletedAt` preenchido). Usa `{{usuarioDescartavelId}}` (não
+  `{{usuarioId}}`) para não afetar o usuário reaproveitado em `08-Acessos`.
+}

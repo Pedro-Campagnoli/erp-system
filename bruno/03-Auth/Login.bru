@@ -1,0 +1,36 @@
+meta {
+  name: Login
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{adminEmail}}",
+    "senha": "{{adminSenha}}"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.accessToken) {
+    bru.setEnvVar("accessToken", res.body.accessToken);
+    bru.setEnvVar("refreshToken", res.body.refreshToken);
+    bru.setEnvVar("empresaId", res.body.usuario.empresaId);
+    bru.setEnvVar("usuarioId", res.body.usuario.id);
+    if (res.body.usuario.lojas && res.body.usuario.lojas.length > 0) {
+      bru.setEnvVar("lojaId", res.body.usuario.lojas[0].lojaId);
+    }
+  }
+}
+
+docs {
+  Troque `adminEmail`/`adminSenha` pelas variáveis `operadorEmail`/
+  `operadorSenha` (editando o body) para testar como o usuário restrito
+  criado em `07-Usuarios > Criar usuário`.
+}

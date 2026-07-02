@@ -1,0 +1,16 @@
+meta {
+  name: Listar lojas
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/lojas
+  body: none
+  auth: inherit
+}
+
+docs {
+  Usuários `superAdmin` veem todas as lojas da empresa; demais usuários só
+  veem as lojas às quais têm acesso (`UsuarioLoja`).
+}

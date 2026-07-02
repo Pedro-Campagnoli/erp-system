@@ -1,0 +1,16 @@
+meta {
+  name: Minha conta
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/usuarios/me
+  body: none
+  auth: inherit
+}
+
+docs {
+  Retorna o `AuthenticatedUser` completo (id, empresaId, superAdmin, lojas
+  com acesso e permissões agregadas) montado pela `JwtStrategy`.
+}

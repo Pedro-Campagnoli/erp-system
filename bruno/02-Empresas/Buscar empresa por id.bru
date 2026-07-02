@@ -1,0 +1,11 @@
+meta {
+  name: Buscar empresa por id
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/empresas/{{empresaId}}
+  body: none
+  auth: inherit
+}

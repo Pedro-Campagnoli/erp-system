@@ -1,0 +1,17 @@
+meta {
+  name: Listar papéis
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/papeis
+  body: none
+  auth: inherit
+}
+
+docs {
+  Retorna os papéis padrão do sistema (empresaId nulo, ex.: "Gerente",
+  "Operador") e os papéis próprios da empresa autenticada (ex.:
+  "Administrador", criado no signup).
+}

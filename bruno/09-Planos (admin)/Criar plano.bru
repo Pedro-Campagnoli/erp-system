@@ -1,0 +1,38 @@
+meta {
+  name: Criar plano
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/planos
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nome": "Plano Teste",
+    "slug": "plano-teste",
+    "descricao": "Criado via Bruno",
+    "precoMensal": 149.9,
+    "limiteLojas": 3,
+    "limiteUsuarios": 10,
+    "recursos": { "fiscal": true, "financeiro": true, "estoque": false },
+    "ativo": true
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.id) {
+    bru.setEnvVar("planoTesteId", res.body.id);
+  }
+}
+
+docs {
+  Exige a permissão `admin.planos.gerenciar` — só o usuário admin da empresa
+  (superAdmin) ou um papel com essa permissão consegue chamar esta rota.
+  Roda depois do login/signup (pasta 03/02) para já ter um `accessToken`.
+  Cria um plano isolado (`planoTesteId`) para não mexer no `{{planoId}}`
+  usado pela empresa de teste.
+}

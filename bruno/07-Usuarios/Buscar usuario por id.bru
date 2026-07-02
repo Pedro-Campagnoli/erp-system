@@ -1,0 +1,11 @@
+meta {
+  name: Buscar usuário por id
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/usuarios/{{usuarioId}}
+  body: none
+  auth: inherit
+}

@@ -1,0 +1,23 @@
+meta {
+  name: Listar catálogo de permissões
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/permissoes
+  body: none
+  auth: inherit
+}
+
+script:post-response {
+  if (res.body && res.body.length > 0) {
+    bru.setEnvVar("permissaoId", res.body[0].id);
+  }
+}
+
+docs {
+  Qualquer usuário autenticado pode listar o catálogo (usado para montar
+  telas de atribuição de papel). Salva o id da primeira permissão em
+  `permissaoId` para uso em `06-Papeis`.
+}

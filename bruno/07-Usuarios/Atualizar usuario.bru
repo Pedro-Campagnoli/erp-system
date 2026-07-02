@@ -1,0 +1,21 @@
+meta {
+  name: Atualizar usuário
+  type: http
+  seq: 6
+}
+
+patch {
+  url: {{baseUrl}}/usuarios/{{usuarioId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "telefone": "11977776666"
+  }
+}
+
+docs {
+  Exige a permissão `cadastros.usuarios.editar`.
+}

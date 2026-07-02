@@ -1,0 +1,33 @@
+meta {
+  name: Criar loja (filial)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/lojas
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "codigo": "FILIAL01",
+    "nome": "Filial 1",
+    "tipo": "FILIAL",
+    "email": "filial1@lojaexemplo.com"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.id) {
+    bru.setEnvVar("filialId", res.body.id);
+  }
+}
+
+docs {
+  Exige a permissão `cadastros.lojas.criar`. Também falha com 400 se o plano
+  da empresa já atingiu o limite de lojas (o plano "Básico" do seed permite
+  só 1 loja — troque o plano da empresa ou use o "Profissional"/"Enterprise"
+  antes de testar esta rota).
+}

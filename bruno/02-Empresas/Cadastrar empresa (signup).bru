@@ -1,0 +1,56 @@
+meta {
+  name: Cadastrar empresa (signup)
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/empresas
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "cnpj": "{{cnpj}}",
+    "razaoSocial": "Loja Exemplo LTDA",
+    "nomeFantasia": "Loja Exemplo",
+    "email": "contato@lojaexemplo.com",
+    "telefone": "11999990000",
+    "endereco": {
+      "logradouro": "Av. Paulista",
+      "numero": "1000",
+      "bairro": "Bela Vista",
+      "cidade": "São Paulo",
+      "uf": "SP",
+      "cep": "01310-100"
+    },
+    "planoId": "{{planoId}}",
+    "usuarioAdmin": {
+      "nome": "Admin",
+      "email": "{{adminEmail}}",
+      "senha": "{{adminSenha}}"
+    }
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.accessToken) {
+    bru.setEnvVar("accessToken", res.body.accessToken);
+    bru.setEnvVar("refreshToken", res.body.refreshToken);
+    bru.setEnvVar("empresaId", res.body.usuario.empresaId);
+    bru.setEnvVar("usuarioId", res.body.usuario.id);
+    if (res.body.usuario.lojas && res.body.usuario.lojas.length > 0) {
+      bru.setEnvVar("lojaId", res.body.usuario.lojas[0].lojaId);
+    }
+  }
+}
+
+docs {
+  Rota pública de onboarding. Cria a Empresa, a Loja matriz, o Papel
+  "Administrador" com todas as permissões, e o usuário admin — já retorna os
+  tokens de acesso. Rode `01-Planos > Listar planos` antes para preencher
+  `{{planoId}}`. Execute esta requisição primeiro: ela alimenta
+  `accessToken`, `refreshToken`, `empresaId`, `usuarioId` e `lojaId` usados
+  no resto da collection.
+}

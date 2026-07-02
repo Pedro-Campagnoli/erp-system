@@ -1,0 +1,16 @@
+meta {
+  name: Excluir loja
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/lojas/{{filialId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Exige a permissão `cadastros.lojas.excluir`. É um soft delete (`ativo:
+  false`, `deletedAt` preenchido).
+}

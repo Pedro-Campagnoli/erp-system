@@ -1,0 +1,22 @@
+meta {
+  name: Atribuir permissões ao papel
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{baseUrl}}/papeis/{{papelId}}/permissoes
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "permissoesIds": ["{{permissaoId}}"]
+  }
+}
+
+docs {
+  Substitui por completo o conjunto de permissões do papel pelo array
+  enviado.
+}

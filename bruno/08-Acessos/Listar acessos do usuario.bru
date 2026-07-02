@@ -1,0 +1,15 @@
+meta {
+  name: Listar acessos do usuário
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/usuarios/{{usuarioId}}/lojas
+  body: none
+  auth: inherit
+}
+
+docs {
+  Lista as lojas às quais `{{usuarioId}}` tem acesso e o papel em cada uma.
+}

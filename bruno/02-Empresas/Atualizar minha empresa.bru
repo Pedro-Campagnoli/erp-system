@@ -1,0 +1,21 @@
+meta {
+  name: Atualizar minha empresa
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/empresas/me
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "telefone": "11988887777"
+  }
+}
+
+docs {
+  Somente usuários `superAdmin` podem editar os dados da própria empresa.
+}

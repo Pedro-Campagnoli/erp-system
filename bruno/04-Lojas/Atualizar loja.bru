@@ -1,0 +1,21 @@
+meta {
+  name: Atualizar loja
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/lojas/{{filialId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nome": "Filial 1 - Centro"
+  }
+}
+
+docs {
+  Exige a permissão `cadastros.lojas.editar`.
+}

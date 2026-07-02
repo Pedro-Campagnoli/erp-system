@@ -1,0 +1,17 @@
+meta {
+  name: Revogar acesso a loja
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/usuarios/{{usuarioId}}/lojas/{{lojaId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Exige a permissão `cadastros.acessos.gerenciar`. Remove o vínculo
+  `UsuarioLoja` por completo (hard delete do vínculo, não do usuário nem da
+  loja).
+}

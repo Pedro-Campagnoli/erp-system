@@ -1,0 +1,18 @@
+meta {
+  name: Listar empresas (admin plataforma)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/empresas
+  body: none
+  auth: inherit
+}
+
+docs {
+  Exige a permissão `admin.empresas.listar` — pensada para um operador da
+  plataforma, não para o admin comum de uma empresa (mesmo sendo superAdmin
+  da própria empresa, ele só tem essa permissão se estiver no papel
+  "Administrador" com o catálogo completo, como o criado no signup).
+}

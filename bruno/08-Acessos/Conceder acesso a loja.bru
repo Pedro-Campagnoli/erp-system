@@ -1,0 +1,25 @@
+meta {
+  name: Conceder acesso a loja
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/usuarios/{{usuarioId}}/lojas
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "lojaId": "{{lojaId}}",
+    "papelId": "{{papelId}}"
+  }
+}
+
+docs {
+  Exige a permissão `cadastros.acessos.gerenciar`. Rode
+  `06-Papeis > Listar papéis` antes e copie o id do papel "Operador" (ou
+  outro) para `{{papelId}}` — por padrão essa variável fica com o id do
+  último papel criado em `06-Papeis > Criar papel`.
+}

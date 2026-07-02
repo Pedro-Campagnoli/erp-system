@@ -1,0 +1,23 @@
+meta {
+  name: Alterar minha senha
+  type: http
+  seq: 2
+}
+
+patch {
+  url: {{baseUrl}}/usuarios/me/senha
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "senhaAtual": "{{adminSenha}}",
+    "novaSenha": "novaSenha123"
+  }
+}
+
+docs {
+  Revoga todos os refresh tokens ativos do usuário após trocar a senha
+  (força novo login em outros dispositivos/sessões).
+}

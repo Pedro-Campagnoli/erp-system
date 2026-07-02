@@ -1,0 +1,30 @@
+meta {
+  name: Criar papel descartável (para exclusão)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/papeis
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nome": "Papel Descartável",
+    "descricao": "Criado só para demonstrar a exclusão, sem afetar {{papelId}}"
+  }
+}
+
+script:post-response {
+  if (res.body && res.body.id) {
+    bru.setEnvVar("papelDescartavelId", res.body.id);
+  }
+}
+
+docs {
+  `{{papelId}}` (criado em "Criar papel") é reaproveitado depois em
+  `07-Usuarios/acessos`, então a exclusão usa um papel separado para não
+  quebrar esse fluxo.
+}

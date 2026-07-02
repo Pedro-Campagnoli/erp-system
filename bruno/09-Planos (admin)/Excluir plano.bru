@@ -1,0 +1,18 @@
+meta {
+  name: Excluir plano
+  type: http
+  seq: 3
+}
+
+delete {
+  url: {{baseUrl}}/planos/{{planoTesteId}}
+  body: none
+  auth: inherit
+}
+
+docs {
+  Falha com 409 se houver empresas vinculadas a este plano — desative-o em
+  vez de excluir (`PATCH /planos/:id` com `{ "ativo": false }`). O
+  `{{planoTesteId}}` criado nesta pasta não tem empresas vinculadas, então a
+  exclusão funciona normalmente.
+}
