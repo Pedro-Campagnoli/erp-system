@@ -89,6 +89,27 @@ resultado do Prisma quase in natura (às vezes com `select` para omitir
 campos sensíveis, como `SEM_SENHA` em `usuarios.service.ts`), sem um
 mapeamento explícito para a classe do DTO em todo endpoint.
 
+## Testes E2E (repositório `erp-tests`)
+
+Este backend não tem testes de domínio no próprio repo (só o
+`app.controller.spec.ts` do boilerplate) — a suíte E2E de API vive num
+repositório irmão, [`erp-tests`](../../erp-tests), rodando Playwright
+contra a API HTTP real. Veja `erp-tests/.claude/agents/erp-tests.md` para a
+convenção completa.
+
+Duas coisas deste backend existem só para dar suporte a esses testes:
+
+- **`src/testing/`** (`TestingModule`/`TestingController`): rotas
+  `/api/testing/...` (hoje só `DELETE /api/testing/empresas/:cnpj`, que
+  limpa uma empresa e tudo que cascade dela) para o repo de teste limpar
+  estado sem acessar o Postgres diretamente. Registrado em `app.module.ts`
+  **só quando `NODE_ENV !== 'production'`** — nunca adicione uma rota aqui
+  sem manter essa condição, e nunca aponte para algo que também deveria
+  existir em produção.
+- Ao adicionar um endpoint nas rotas de negócio, adicione (ou peça pro
+  agente `erp-tests` adicionar) a cobertura correspondente lá — não deixe
+  a suíte ficar defasada do contrato real da API.
+
 ## Estrutura de pastas por módulo
 
 ```

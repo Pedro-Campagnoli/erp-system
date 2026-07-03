@@ -16,6 +16,7 @@ import { LojasModule } from './lojas/lojas.module';
 import { PermissoesModule } from './permissoes/permissoes.module';
 import { PlanosModule } from './planos/planos.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
+import { TestingModule } from './testing/testing.module';
 
 @Module({
   imports: [
@@ -27,6 +28,8 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     LojasModule,
     PermissoesModule,
     UsuariosModule,
+    // Rotas de apoio a testes E2E (repo erp-tests) — nunca em produção.
+    ...(process.env.NODE_ENV !== 'production' ? [TestingModule] : []),
   ],
   controllers: [AppController],
   providers: [

@@ -1,35 +1,42 @@
 # Agentes Claude Code deste projeto
 
 Convenção de organização dos agentes/subagentes customizados usados para
-trabalhar neste projeto.
+trabalhar no ERP. O ERP é composto por mais de um repositório (irmãos, na
+mesma pasta `erp-system/`) — hoje `erp-backend` (este) e
+[`erp-tests`](../../erp-tests) — e cada um tem seus próprios agentes.
 
 ## Onde cada agente vive
 
-- **Específicos do ERP** (acoplados às convenções e ao domínio deste
-  projeto) ficam em [`​.claude/agents/`](../.claude/agents/), dentro do
-  próprio repo. Viajam com qualquer clone e ficam versionados junto com o
-  código que documentam.
+- **Específicos de um repositório do ERP** ficam em `.claude/agents/`
+  *dentro daquele repositório* — ex.: os agentes de backend ficam em
+  [`​.claude/agents/`](../.claude/agents/) aqui no `erp-backend`, e o agente
+  de testes fica em `erp-tests/.claude/agents/`. Viajam com qualquer clone
+  do repositório correspondente e ficam versionados junto com o código que
+  documentam.
 - **Genéricos** (reutilizáveis em qualquer projeto, sem relação com ERP)
-  ficam em `~/.claude/agents/` (global, fora do repo) — não devem ser
-  versionados aqui.
+  ficam em `~/.claude/agents/` (global, fora de qualquer repo) — não devem
+  ser versionados em nenhum dos repositórios do ERP.
 
 ## Convenção de nomes
 
-Todo agente específico deste projeto usa o prefixo `erp-backend`:
+Cada agente usa o prefixo do repositório onde vive:
 
-- `erp-backend` — agente principal, orquestra o trabalho de backend e
-  delega para os subagentes abaixo quando aplicável.
-- `erp-backend-<especialidade>` — subagentes de uma frente específica, ex.:
-  `erp-backend-docs` (mantém a pasta `docs/`). Próximos subagentes devem
-  seguir o mesmo padrão (`erp-backend-fiscal`, `erp-backend-financeiro`,
-  `erp-backend-tests`, etc.) conforme forem criados.
+- `erp-backend` — agente principal deste repo, orquestra o trabalho de
+  backend e delega para os subagentes abaixo quando aplicável.
+- `erp-backend-<especialidade>` — subagentes de uma frente específica do
+  backend, ex.: `erp-backend-docs` (mantém esta pasta `docs/`).
+- `erp-tests` — agente do repositório `erp-tests`, mantém a suíte E2E
+  (hoje cobre a API deste backend; cobrirá o frontend também quando ele
+  existir). Ver `erp-tests/.claude/agents/erp-tests.md` para a convenção
+  completa de testes.
 
 ## Agentes existentes
 
-| Nome                | Papel                                                          |
-| -------------------- | --------------------------------------------------------------- |
-| `erp-backend`        | Agente principal de backend deste projeto.                    |
-| `erp-backend-docs`   | Cria/atualiza a documentação em `docs/`.                       |
+| Nome                | Repositório  | Papel                                             |
+| -------------------- | ------------ | -------------------------------------------------- |
+| `erp-backend`        | erp-backend  | Agente principal de backend.                      |
+| `erp-backend-docs`   | erp-backend  | Cria/atualiza a documentação em `docs/`.          |
+| `erp-tests`          | erp-tests    | Cria/mantém os testes E2E (API hoje, UI depois).  |
 
 ## Observações
 
