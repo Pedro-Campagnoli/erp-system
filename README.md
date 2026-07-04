@@ -62,10 +62,15 @@ cp .env.example .env        # ajuste os secrets de JWT antes de produção
 
 pnpm docker:up                # sobe o PostgreSQL via docker-compose
 pnpm prisma:migrate           # cria o schema no banco
-pnpm prisma:seed              # popula planos, permissões e papéis padrão
+pnpm prisma:seed              # popula planos, permissões, papéis padrão e uma empresa de demonstração
 
 pnpm start:dev                 # http://localhost:3000/api
 ```
+
+O seed também cria uma empresa de demonstração (idempotente — só na primeira
+vez) pra testar a API sem precisar rodar o onboarding manualmente:
+`admin@demo.com` / `Demo@123` (superAdmin, plano Profissional, loja matriz
+"MATRIZ").
 
 ## Testando a API (Bruno)
 

@@ -1,10 +1,18 @@
 import 'dotenv/config';
+import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ModuloSistema, PrismaClient } from '../generated/prisma/client';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
+
+const BCRYPT_SALT_ROUNDS = parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '10', 10);
+
+// CNPJ de teste conhecido (dígitos verificadores válidos) — só para dev local.
+const EMPRESA_DEMO_CNPJ = '11222333000181';
+const EMPRESA_DEMO_ADMIN_EMAIL = 'admin@demo.com';
+const EMPRESA_DEMO_ADMIN_SENHA = 'Demo@123';
 
 const PERMISSOES = [
   { codigo: 'admin.planos.gerenciar', modulo: ModuloSistema.ADMIN, descricao: 'Gerenciar planos de assinatura' },
@@ -78,6 +86,86 @@ async function criarPapelSistemaSeNaoExistir(
   });
 }
 
+/**
+ * Empresa + loja matriz + usuário admin para testar a API localmente sem
+ * precisar rodar o onboarding (`POST /empresas`) manualmente toda vez.
+ * Reproduz o mesmo fluxo de `EmpresasService.create` (plano, loja matriz,
+ * papel Administrador com todas as permissões, usuário superAdmin).
+ */
+async function criarEmpresaDemoSeNaoExistir() {
+  const existente = await prisma.empresa.findUnique({
+    where: { cnpj: EMPRESA_DEMO_CNPJ },
+  });
+  if (existente) {
+    return;
+  }
+
+  const plano = await prisma.plano.findUniqueOrThrow({
+    where: { slug: 'profissional' },
+  });
+  const todasPermissoes = await prisma.permissao.findMany({
+    select: { id: true },
+  });
+  const senhaHash = await bcrypt.hash(EMPRESA_DEMO_ADMIN_SENHA, BCRYPT_SALT_ROUNDS);
+
+  await prisma.$transaction(async (tx) => {
+    const empresa = await tx.empresa.create({
+      data: {
+        cnpj: EMPRESA_DEMO_CNPJ,
+        razaoSocial: 'Empresa Demonstração LTDA',
+        nomeFantasia: 'Empresa Demo',
+        email: 'contato@demo.com',
+        planoId: plano.id,
+      },
+    });
+
+    const lojaMatriz = await tx.loja.create({
+      data: {
+        empresaId: empresa.id,
+        codigo: 'MATRIZ',
+        nome: 'Loja Matriz',
+        tipo: 'MATRIZ',
+        cnpj: EMPRESA_DEMO_CNPJ,
+        email: 'contato@demo.com',
+      },
+    });
+
+    const papelAdmin = await tx.papel.create({
+      data: {
+        empresaId: empresa.id,
+        nome: 'Administrador',
+        descricao: 'Acesso completo a todos os módulos e lojas da empresa',
+        sistema: true,
+        permissoes: {
+          create: todasPermissoes.map((p) => ({ permissaoId: p.id })),
+        },
+      },
+    });
+
+    const usuarioAdmin = await tx.usuario.create({
+      data: {
+        empresaId: empresa.id,
+        nome: 'Admin Demo',
+        email: EMPRESA_DEMO_ADMIN_EMAIL,
+        senha: senhaHash,
+        superAdmin: true,
+      },
+    });
+
+    await tx.usuarioLoja.create({
+      data: {
+        usuarioId: usuarioAdmin.id,
+        lojaId: lojaMatriz.id,
+        papelId: papelAdmin.id,
+      },
+    });
+  });
+
+  console.log(
+    `Empresa de demonstração criada (login: ${EMPRESA_DEMO_ADMIN_EMAIL} / ${EMPRESA_DEMO_ADMIN_SENHA}).`,
+  );
+}
+
 async function main() {
   for (const permissao of PERMISSOES) {
     await prisma.permissao.upsert({
@@ -109,6 +197,8 @@ async function main() {
   // sempre distinto em uma UNIQUE constraint), então checamos manualmente.
   await criarPapelSistemaSeNaoExistir('Gerente', 'Gerencia lojas, usuários e operações do dia a dia', permissoesCadastrosLeitura.map((p) => p.id));
   await criarPapelSistemaSeNaoExistir('Operador', 'Acesso operacional básico, sem permissões administrativas', []);
+
+  await criarEmpresaDemoSeNaoExistir();
 
   console.log('Seed concluído com sucesso.');
 }
