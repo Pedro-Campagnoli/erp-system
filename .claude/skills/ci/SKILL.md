@@ -32,7 +32,8 @@ valor do token nesta conversa nem em nenhum arquivo do repo:
 
 1. Criar um **fine-grained personal access token** em
    github.com/settings/tokens, escopado **só** ao repositório
-   `Pedro-Campagnoli/erp-backend`, com permissão **Contents: Read-only**
+   `Pedro-Campagnoli/erp-system` (esse é o nome do repo no GitHub — a pasta
+   local se chama `erp-backend`), com permissão **Contents: Read-only**
    (nada além disso).
 2. Em `github.com/Pedro-Campagnoli/erp-tests` → Settings → Secrets and
    variables → Actions → New repository secret, criar `ERP_BACKEND_PAT` com
