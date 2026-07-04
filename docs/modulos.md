@@ -10,7 +10,10 @@ Login, refresh, logout e a `JwtStrategy` (passport-jwt) que popula
 `request.user` em toda requisição autenticada.
 
 - `POST /auth/login`, `POST /auth/refresh` são `@Public()`; `POST /auth/logout`
-  exige autenticação.
+  exige autenticação. `login` (5/min) e `refresh` (10/min) têm limites de
+  `@Throttle()` mais estritos que o padrão global (120/min por IP,
+  `ThrottlerGuard` — ver `arquitetura.md`), por serem alvo natural de força
+  bruta/credential stuffing.
 - `JwtStrategy.validate()` recarrega o usuário do banco a cada requisição
   (não confia só no payload do JWT) e monta o `AuthenticatedUser` completo
   — incluindo o array achatado de `permissoes` (união de todos os papéis de
@@ -31,18 +34,21 @@ Login, refresh, logout e a `JwtStrategy` (passport-jwt) que popula
 
 CRUD de tenants + o endpoint de onboarding.
 
-- `POST /empresas` (`@Public()`): onboarding completo (ver `arquitetura.md`
-  — cria Empresa, loja matriz, papel Administrador e usuário admin em uma
-  transação) e retorna tokens de acesso.
-- `GET /empresas` e `GET /empresas/:id` exigem
-  `admin.empresas.listar` — é a visão de "administrador da plataforma"
-  (SaaS), não do tenant; nenhum usuário comum de uma empresa tem esse
-  código de permissão por padrão.
+- `POST /empresas` (`@Public()`, `@Throttle` 5/min): onboarding completo —
+  delega para `onboardTenant()` (`src/empresas/tenant-onboarding.ts`, ver
+  `arquitetura.md`), que cria Empresa, loja matriz, papel "Administrador"
+  (só com permissões de escopo de tenant) e usuário admin
+  (`superAdmin: false`) numa transação — e retorna tokens de acesso.
+- `GET /empresas` e `GET /empresas/:id` são administração da **plataforma**
+  (listam/consultam todas as empresas clientes) — protegidas por
+  `@UseGuards(SuperAdminGuard)`, não por `@Permissions()`. Nenhum usuário
+  comum de uma empresa consegue chamá-las, mesmo com todas as permissões de
+  tenant.
 - `GET /empresas/me` e `PATCH /empresas/me` operam sobre a própria empresa
-  do usuário logado (`request.user.empresaId`), sem precisar de permissão
-  no catálogo — mas `updateMe` checa `usuario.superAdmin` manualmente no
-  controller (não usa `@Permissions()`) para restringir a edição a admins
-  do tenant.
+  do usuário logado (`request.user.empresaId`). `updateMe` exige
+  `cadastros.empresa.editar` via `@Permissions()` normal (o papel
+  "Administrador" do tenant já tem essa permissão por padrão) — não há mais
+  checagem ad-hoc de `usuario.superAdmin` aqui.
 
 ## `lojas`
 
@@ -69,6 +75,12 @@ CRUD de usuários da própria empresa + gestão de acesso a lojas
 - `create` valida `plano.limiteUsuarios` (mesmo padrão de `lojas`) e aceita
   uma lista `lojas: [{ lojaId, papelId }]` para já criar os vínculos de
   acesso junto com o usuário.
+- `create` recebe também `atorSuperAdmin` (`request.user.superAdmin`, passado
+  pelo controller) e rejeita `dto.superAdmin: true` com `ForbiddenException`
+  se quem está chamando não for `superAdmin` — impede que um admin comum de
+  uma empresa (permissão `cadastros.usuarios.criar`) crie outro usuário com
+  o flag de administrador de **plataforma** (escalação de privilégio). Ver
+  `arquitetura.md`. `update` (`PATCH /usuarios/:id`) nunca expôs esse campo.
 - `validarAcessos` (privado) é chamado antes de qualquer criação/atualização
   de `UsuarioLoja` para garantir que as lojas pertencem à empresa do
   usuário logado e que os papéis são acessíveis a ela (próprios ou globais)
@@ -98,6 +110,11 @@ e CRUD de papéis.
   globais — leitura) de papéis "da empresa" (só os do próprio tenant —
   escrita). Papéis globais (`empresaId: null`) são somente leitura para
   qualquer tenant: tentar editar/excluir um lança `ForbiddenException`.
+- `create` e `atribuirPermissoes` chamam `garantirPermissoesDeTenant()`
+  antes de gravar: se algum `permissaoId` informado for de um módulo de
+  **plataforma** (`MODULOS_PLATAFORMA`, hoje só `ADMIN`), o request inteiro
+  falha com `ForbiddenException` — um tenant não pode montar um papel
+  próprio com permissões de administração da plataforma.
 - `PUT /papeis/:id/permissoes` substitui a lista inteira de permissões do
   papel (delete + createMany em transação) — não existe endpoint para
   adicionar/remover uma permissão isoladamente.
@@ -113,8 +130,10 @@ CRUD dos planos de assinatura da plataforma (SaaS), não confundir com
   acessíveis antes de existir uma sessão, para a tela de cadastro de nova
   empresa escolher um plano (`planoId` é obrigatório em `CreateEmpresaDto`).
   `?ativos=true` filtra só os planos comercializáveis no momento.
-- Escrita (`create`/`update`/`remove`) exige `admin.planos.gerenciar` — é
-  operação de administrador da plataforma, não de um tenant.
+- Escrita (`create`/`update`/`remove`) usa `@UseGuards(SuperAdminGuard)` —
+  exige `usuario.superAdmin === true`, não uma permissão do catálogo de
+  tenant. É administração da plataforma (planos SaaS globais), então não
+  faz sentido gateá-la pelo RBAC de uma empresa.
 - `remove` bloqueia a exclusão de um plano com empresas vinculadas
   (`ConflictException`, sugerindo desativar via `ativo: false` em vez de
   excluir).
@@ -128,11 +147,15 @@ nos hooks de lifecycle do Nest (`onModuleInit`/`onModuleDestroy`).
 
 ## `common`
 
-Não é um módulo Nest, é onde vive a infraestrutura transversal: guards,
+Não é um módulo Nest, é onde vive a infraestrutura transversal: guards
+(`JwtAuthGuard`, `PermissionsGuard`, `LojaAccessGuard`, `SuperAdminGuard`),
 decorators, middleware, filtro de exceção, validators customizados, DTOs
 compartilhados (`EnderecoDto`) e utils (`hash.util`, `duration.util`,
-`json.util`). Detalhado em `arquitetura.md` (guards/middleware) e
-`convencoes.md` (validators, formato de erro).
+`json.util`). `permissions.constant.ts` também vive aqui — não é só o
+catálogo `PERMISSIONS`, mas também `MODULOS_PLATAFORMA`/
+`isModuloDePlataforma()`, a fonte de verdade sobre o que é permissão de
+tenant vs. de plataforma. Detalhado em `arquitetura.md` (guards/middleware,
+RBAC) e `convencoes.md` (validators, formato de erro).
 
 ## `config`
 
@@ -140,4 +163,7 @@ compartilhados (`EnderecoDto`) e utils (`hash.util`, `duration.util`,
 (`AppConfig`, consumido via `ConfigService.get<...>`); `env.validation.ts`
 valida no boot (`class-validator` sobre `EnvironmentVariables`) que
 `DATABASE_URL`, `JWT_ACCESS_SECRET` e `JWT_REFRESH_SECRET` existem — a
-aplicação não sobe sem eles.
+aplicação não sobe sem eles. `enableTestingRoutes` (env
+`ENABLE_TESTING_ROUTES`, default `false`) é a flag explícita que liga o
+`TestingModule` (`app.module.ts`) e o Swagger em `/api/docs`
+(`main.ts`) — ver `convencoes.md`.

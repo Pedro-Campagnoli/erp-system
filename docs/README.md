@@ -6,12 +6,14 @@ objetivo aqui é permitir entender o sistema sem reler todo o código-fonte.
 
 - [`arquitetura.md`](./arquitetura.md) — modelo multi-tenant (Empresa >
   Loja > Usuário), o pipeline de uma requisição (middleware de tenant →
-  guards de auth/permissão/loja → controller → service → Prisma) e a
-  estratégia de RBAC (Papel/Permissão, `superAdmin`).
+  guards de auth/permissão/loja/plataforma → controller → service → Prisma)
+  e os dois RBACs separados do sistema: permissões de tenant (Papel/
+  Permissão) e administração de plataforma (`superAdmin`/`SuperAdminGuard`).
 - [`modelo-dados.md`](./modelo-dados.md) — passeio pelas entidades de
   `prisma/schema.prisma`, seus relacionamentos e enums, e o porquê de
-  decisões não óbvias (`Papel.empresaId` opcional, `superAdmin` sem
-  `UsuarioLoja`, campos já reservados para módulos futuros).
+  decisões não óbvias (`Papel.empresaId` opcional, `Permissao.modulo` e
+  `MODULOS_PLATAFORMA`, `superAdmin` sem `UsuarioLoja`, campos já reservados
+  para módulos futuros).
 - [`modulos.md`](./modulos.md) — o que cada módulo em `src/` faz e as
   regras de negócio relevantes para quem for mexer neles.
 - [`convencoes.md`](./convencoes.md) — validators customizados em pt-BR,

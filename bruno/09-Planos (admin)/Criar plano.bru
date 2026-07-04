@@ -30,9 +30,14 @@ script:post-response {
 }
 
 docs {
-  Exige a permissão `admin.planos.gerenciar` — só o usuário admin da empresa
-  (superAdmin) ou um papel com essa permissão consegue chamar esta rota.
-  Roda depois do login/signup (pasta 03/02) para já ter um `accessToken`.
+  Rota de administração da PLATAFORMA — protegida por `SuperAdminGuard`, não
+  pela permissão `admin.planos.gerenciar` do catálogo (essa entrada existe só
+  como documentação do catálogo/seed). Exige `usuario.superAdmin === true`.
+
+  O admin criado no signup (pasta 02, `POST /empresas`) NÃO é `superAdmin` e
+  recebe 403 aqui. Para testar esta rota, troque `adminEmail`/`adminSenha`
+  pelo admin de plataforma semeado localmente (`plataforma@erp.internal` /
+  `Plataforma@123`, ver `prisma/seed.ts`) na requisição de login (pasta 03).
   Cria um plano isolado (`planoTesteId`) para não mexer no `{{planoId}}`
   usado pela empresa de teste.
 }
