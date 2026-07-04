@@ -5,3 +5,11 @@ allowBuilds:
   esbuild: true
   prisma: true
   unrs-resolver: true
+
+# Bumps triviais/seguros de CVEs transitivas (multer via
+# @nestjs/platform-express, @hono/node-server via prisma's dev deps) — nenhum
+# dos dois é usado diretamente pela app hoje (sem upload de arquivo), risco
+# baixo. Ver `pnpm audit`.
+overrides:
+  multer: '>=2.2.0'
+  '@hono/node-server': '>=1.19.13'

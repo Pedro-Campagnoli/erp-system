@@ -11,8 +11,11 @@ get {
 }
 
 docs {
-  Exige a permissão `admin.empresas.listar` — pensada para um operador da
-  plataforma, não para o admin comum de uma empresa (mesmo sendo superAdmin
-  da própria empresa, ele só tem essa permissão se estiver no papel
-  "Administrador" com o catálogo completo, como o criado no signup).
+  Rota de administração da PLATAFORMA — protegida por `SuperAdminGuard`, não
+  pelo sistema de permissões por tenant. Exige `usuario.superAdmin === true`.
+
+  O admin criado no signup (`POST /empresas`) NÃO tem `superAdmin` e recebe
+  403 aqui — ele é admin da própria empresa, não da plataforma. Para testar
+  esta rota, faça login com o admin de plataforma semeado localmente
+  (`plataforma@erp.internal` / `Plataforma@123`, ver `prisma/seed.ts`).
 }

@@ -20,10 +20,13 @@ async function bootstrap() {
   app.enableCors({ origin: corsOrigin === '*' ? true : corsOrigin.split(',') });
   app.setGlobalPrefix(apiPrefix);
 
-  // Documentação OpenAPI — só fora de produção (mesma convenção do
-  // TestingModule): esta API ainda não tem consumidor externo que precise
-  // do doc em prod.
-  if (configService.get<string>('env') !== 'production') {
+  // Documentação OpenAPI — gateada pela mesma flag explícita do
+  // TestingModule (`ENABLE_TESTING_ROUTES`, ver `app.module.ts` e
+  // `configuration.ts`), não por `NODE_ENV !== 'production'`: essa checagem
+  // deixava o Swagger exposto por engano em qualquer ambiente cujo
+  // `NODE_ENV` não fosse exatamente "production" (ex.: staging acessível
+  // pela rede).
+  if (configService.get<boolean>('enableTestingRoutes')) {
     const document = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()

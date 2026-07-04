@@ -89,13 +89,23 @@ resultado do Prisma quase in natura (às vezes com `select` para omitir
 campos sensíveis, como `SEM_SENHA` em `usuarios.service.ts`), sem um
 mapeamento explícito para a classe do DTO em todo endpoint.
 
-## Testes E2E (repositório `erp-tests`)
+## Testes
 
-Este backend não tem testes de domínio no próprio repo (só o
-`app.controller.spec.ts` do boilerplate) — a suíte E2E de API vive num
-repositório irmão, [`erp-tests`](../../erp-tests), rodando Playwright
-contra a API HTTP real. Veja `erp-tests/.claude/agents/erp-tests.md` para a
-convenção completa.
+A suíte E2E de API vive num repositório irmão,
+[`erp-tests`](../../erp-tests), rodando Playwright contra a API HTTP real.
+Veja `erp-tests/.claude/agents/erp-tests.md` para a convenção completa.
+
+Este backend também tem alguns testes unitários (Jest) no próprio repo,
+todos com mocks — não precisam de banco real e rodam via `pnpm test`. Não é
+cobertura ampla de todo módulo, e sim de lógica de segurança/RBAC
+particularmente sensível a regressão: `src/empresas/tenant-onboarding.spec.ts`,
+`src/common/guards/super-admin.guard.spec.ts`,
+`src/permissoes/papeis.service.spec.ts` e
+`src/usuarios/usuarios.service.spec.ts`. Ao tocar em `onboardTenant`,
+`SuperAdminGuard`, `PapeisService` ou na criação de usuário
+(`UsuariosService.create`), atualize o spec correspondente — são a rede de
+segurança contra reintroduzir o vazamento de permissões que motivou a
+separação plataforma/tenant (ver `arquitetura.md`).
 
 Duas coisas deste backend existem só para dar suporte a esses testes:
 
@@ -103,9 +113,15 @@ Duas coisas deste backend existem só para dar suporte a esses testes:
   `/api/testing/...` (hoje só `DELETE /api/testing/empresas/:cnpj`, que
   limpa uma empresa e tudo que cascade dela) para o repo de teste limpar
   estado sem acessar o Postgres diretamente. Registrado em `app.module.ts`
-  **só quando `NODE_ENV !== 'production'`** — nunca adicione uma rota aqui
-  sem manter essa condição, e nunca aponte para algo que também deveria
-  existir em produção.
+  **só quando a env var `ENABLE_TESTING_ROUTES=true`** é definida
+  explicitamente (default `false`, ver `.env.example`) — nunca adicione uma
+  rota aqui sem manter essa condição, e nunca aponte para algo que também
+  deveria existir em produção. Não use `NODE_ENV !== 'production'` para essa
+  checagem: já foi tentado e é frágil (qualquer ambiente cujo `NODE_ENV` não
+  seja exatamente `"production"`, ex.: staging acessível pela rede, ficaria
+  exposto por engano). A mesma flag também controla se o Swagger é montado
+  em `/api/docs` (`main.ts`) — as duas coisas (rotas de teste e documentação
+  interativa) não deveriam existir num ambiente de produção real.
 - Ao adicionar um endpoint nas rotas de negócio, adicione (ou peça pro
   agente `erp-tests` adicionar) a cobertura correspondente lá — não deixe
   a suíte ficar defasada do contrato real da API.
@@ -147,7 +163,14 @@ catálogo de permissões).
    em `src/common/constants/permissions.constant.ts` (`PERMISSIONS`) — os
    controllers referenciam a constante, nunca a string crua. Rodar
    `pnpm prisma:seed` para popular o catálogo (o `upsert` por `codigo` é
-   idempotente).
+   idempotente). Módulos de negócio (`FISCAL`, `FINANCEIRO`, `ESTOQUE`,
+   `VENDAS`) são sempre de escopo de **tenant** — nunca adicione um desses
+   módulos a `MODULOS_PLATAFORMA` (`permissions.constant.ts`); essa lista é
+   reservada para administração da plataforma (hoje só `ADMIN`) e qualquer
+   entrada nela fica automaticamente inelegível para papéis de empresa (ver
+   `PapeisService`/`onboardTenant` em `arquitetura.md`). Se o módulo novo
+   for mesmo de administração da plataforma (caso raro), use
+   `SuperAdminGuard` na rota em vez de `@Permissions()`.
 5. **Loja de contexto**: se o módulo opera sobre dado escopado a uma loja
    específica (estoque, vendas, fiscal), usar `@RequireLoja()` +
    `@LojaAtual()` para obter o `lojaId` validado pelo `LojaAccessGuard`, em

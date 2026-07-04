@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -33,7 +34,21 @@ export class UsuariosService {
     private readonly configService: ConfigService,
   ) {}
 
-  async create(empresaId: string, dto: CreateUsuarioDto) {
+  async create(
+    empresaId: string,
+    dto: CreateUsuarioDto,
+    atorSuperAdmin: boolean,
+  ) {
+    // Escalação de privilégio: `superAdmin` é o flag de administração da
+    // PLATAFORMA (ver `src/common/guards/super-admin.guard.ts`), não algo
+    // que um admin de empresa comum (papel "Administrador", permissão
+    // `cadastros.usuarios.criar`) possa conceder a si mesmo ou a terceiros.
+    if (dto.superAdmin && !atorSuperAdmin) {
+      throw new ForbiddenException(
+        'Apenas um administrador da plataforma pode conceder superAdmin a um usuário',
+      );
+    }
+
     const empresa = await this.prisma.empresa.findUniqueOrThrow({
       where: { id: empresaId },
       include: { plano: true, _count: { select: { usuarios: true } } },

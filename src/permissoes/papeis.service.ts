@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { MODULOS_PLATAFORMA } from '../common/constants/permissions.constant';
 import { PrismaService } from '../prisma/prisma.service';
 import { AtribuirPermissoesDto } from './dto/atribuir-permissoes.dto';
 import { CreatePapelDto } from './dto/create-papel.dto';
@@ -18,6 +19,10 @@ export class PapeisService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(empresaId: string, dto: CreatePapelDto) {
+    if (dto.permissoesIds?.length) {
+      await this.garantirPermissoesDeTenant(dto.permissoesIds);
+    }
+
     const papel = await this.prisma.papel.create({
       data: {
         nome: dto.nome,
@@ -66,6 +71,10 @@ export class PapeisService {
   ) {
     const papel = await this.buscarPapelDaEmpresa(empresaId, id);
 
+    if (dto.permissoesIds.length) {
+      await this.garantirPermissoesDeTenant(dto.permissoesIds);
+    }
+
     await this.prisma.$transaction([
       this.prisma.papelPermissao.deleteMany({ where: { papelId: papel.id } }),
       this.prisma.papelPermissao.createMany({
@@ -96,6 +105,31 @@ export class PapeisService {
     }
 
     await this.prisma.papel.delete({ where: { id: papel.id } });
+  }
+
+  /**
+   * Papéis de uma empresa (tenant) nunca podem receber permissões de módulos
+   * de plataforma (ex.: `ADMIN` — listar todas as empresas, gerenciar
+   * planos globais). Só papéis globais/de sistema (sem `empresaId`, criados
+   * via seed) poderiam tê-las — e mesmo assim, hoje o seed não concede
+   * nenhuma. `PapeisController` só expõe rotas escopadas a uma empresa, então
+   * esta checagem cobre todo caminho de escrita deste service.
+   */
+  private async garantirPermissoesDeTenant(
+    permissaoIds: string[],
+  ): Promise<void> {
+    const permissoesDePlataforma = await this.prisma.permissao.count({
+      where: {
+        id: { in: permissaoIds },
+        modulo: { in: [...MODULOS_PLATAFORMA] },
+      },
+    });
+
+    if (permissoesDePlataforma > 0) {
+      throw new ForbiddenException(
+        'Permissões de administração da plataforma não podem ser atribuídas a papéis de uma empresa',
+      );
+    }
   }
 
   /** Papel do próprio tenant ou papel padrão do sistema (somente leitura). */

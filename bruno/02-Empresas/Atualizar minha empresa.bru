@@ -17,5 +17,8 @@ body:json {
 }
 
 docs {
-  Somente usuários `superAdmin` podem editar os dados da própria empresa.
+  Exige a permissão `cadastros.empresa.editar` (de escopo de tenant — o
+  papel "Administrador" criado no signup já tem essa permissão). Não usa
+  `superAdmin`: essa rota edita a EMPRESA do usuário logado, não é uma rota
+  de administração da plataforma.
 }

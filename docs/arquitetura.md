@@ -46,7 +46,10 @@ Ordem de execução (pipeline padrão do Nest: middleware → guards → control
    refresh, `POST /empresas`, catálogo de planos).
 3. **`PermissionsGuard`** (global) — se a rota tem `@Permissions(...)`,
    confere se `request.user.permissoes` contém todos os códigos exigidos.
-   `superAdmin` sempre passa, sem checar a lista.
+   `superAdmin` sempre passa, sem checar a lista. Esse guard só entende o
+   RBAC de **tenant** (Papel/Permissão de uma empresa) — rotas de
+   administração da **plataforma** não usam `@Permissions()`, usam
+   `SuperAdminGuard` (ver seção "RBAC" abaixo).
 4. **`LojaAccessGuard`** (global) — se a requisição informou `x-loja-id`,
    confere se `request.user.lojas` inclui aquela loja (ou se é `superAdmin`,
    que tem acesso irrestrito às lojas da própria empresa). Se a rota tem
@@ -60,35 +63,98 @@ Ordem de execução (pipeline padrão do Nest: middleware → guards → control
    `PrismaService` (client do Prisma 7 via `@prisma/adapter-pg`, singleton
    global registrado em `PrismaModule`).
 
-A ordem dos três guards importa: `PermissionsGuard` e `LojaAccessGuard`
-dependem de `request.user`, que só existe depois que `JwtAuthGuard` rodou —
-por isso são declarados nessa ordem em `app.module.ts`.
+A ordem dos três guards globais importa: `PermissionsGuard` e
+`LojaAccessGuard` dependem de `request.user`, que só existe depois que
+`JwtAuthGuard` rodou — por isso são declarados nessa ordem em
+`app.module.ts`. Há um quarto guard, `SuperAdminGuard`, que **não** é global
+— é aplicado rota a rota via `@UseGuards(SuperAdminGuard)` nos poucos
+endpoints de administração da plataforma (ver abaixo), sempre depois do
+`JwtAuthGuard` (que já populou `request.user`).
 
-## RBAC: Papel/Permissão
+Também global (via `APP_GUARD`) e executado antes de todos os guards acima:
+`ThrottlerGuard` (`@nestjs/throttler`), limite padrão de 120 req/min por IP
+(`ThrottlerModule.forRoot` em `app.module.ts`, storage em memória — não
+sobrevive a múltiplas réplicas). `POST /auth/login` (5/min),
+`POST /auth/refresh` (10/min) e `POST /empresas` (5/min) têm limites mais
+estritos via `@Throttle()`, por serem alvos óbvios de força
+bruta/enumeração.
+
+## RBAC: dois níveis de administração — plataforma e tenant
+
+Existem dois RBACs completamente separados nesta aplicação, e misturá-los já
+foi a causa de uma vulnerabilidade real (uma empresa que se cadastrava
+ganhava acesso de administração da plataforma inteira — corrigido; ver
+histórico do módulo `empresas`). Não trate os dois como a mesma coisa:
+
+- **RBAC de tenant** (`Permissao`/`Papel`/`PapelPermissao`/`UsuarioLoja`),
+  gateado por `@Permissions()` + `PermissionsGuard`, descrito abaixo.
+- **Administração de plataforma** (equipe interna, cross-tenant), gateada
+  por `SuperAdminGuard` + `Usuario.superAdmin`, descrita na subseção
+  seguinte. As duas coisas não se sobrepõem: nenhuma `Permissao` de módulo de
+  plataforma pode ser atribuída a um papel de tenant (ver abaixo).
+
+### RBAC de tenant: Papel/Permissão
 
 - `Permissao` é um catálogo **global** de códigos (`modulo.recurso.acao`,
   ex.: `cadastros.lojas.criar`), semeado por `prisma/seed.ts` e espelhado em
   código por `src/common/constants/permissions.constant.ts` (`PERMISSIONS`).
   Os controllers nunca usam strings soltas — sempre a constante.
+- Toda `Permissao` tem um `modulo` (`ModuloSistema`). Os módulos listados em
+  `MODULOS_PLATAFORMA` (`permissions.constant.ts` — hoje só `ADMIN`) são de
+  escopo de **plataforma** e nunca podem compor um papel de empresa; é a
+  fonte de verdade em código para essa distinção, não uma convenção de nome
+  do código da permissão. `isModuloDePlataforma(modulo)` expõe a checagem.
 - `Papel` agrupa permissões via `PapelPermissao`. Pode ser:
   - **Global** (`empresaId = null`): papel padrão do sistema (ex.:
     "Gerente", "Operador", criados pelo seed), somente leitura para os
     tenants — `PapeisService` bloqueia `update`/`atribuirPermissoes`/`remove`
     nesses papéis (ver `buscarPapelDaEmpresa` em `papeis.service.ts`).
   - **Da empresa**: criado pelo próprio tenant via `POST /papeis`, ou o
-    papel "Administrador" (com todas as permissões do catálogo) criado
-    automaticamente no onboarding.
+    papel "Administrador" criado automaticamente no onboarding — que recebe
+    **todas as permissões, exceto as de `MODULOS_PLATAFORMA`** (ver
+    "Onboarding de um tenant" abaixo).
+  - `PapeisService.create`/`atribuirPermissoes` chamam
+    `garantirPermissoesDeTenant()` antes de gravar: qualquer
+    `permissaoId` cujo `modulo` esteja em `MODULOS_PLATAFORMA` faz o request
+    inteiro falhar com `ForbiddenException` — um tenant não consegue montar
+    um papel próprio com permissões de plataforma, nem por essa via.
 - O vínculo `UsuarioLoja` é o que efetivamente concede acesso: um usuário só
   "tem" um papel/permissões numa loja onde existe um `UsuarioLoja` ativo. O
   conjunto de permissões de um usuário autenticado é a **união** das
   permissões de todos os papéis de todas as suas lojas ativas — calculado em
   `JwtStrategy.validate()` e `AuthService.carregarPerfil()`, não persistido.
-- **`superAdmin`** (`Usuario.superAdmin`) é um flag independente do RBAC:
-  quem tem esse flag ignora `PermissionsGuard` e `LojaAccessGuard`
-  completamente, com acesso irrestrito a todas as lojas *da própria
-  empresa* — não precisa de `UsuarioLoja` para cada loja. Só o usuário
-  criado no onboarding (`POST /empresas`) recebe esse flag por padrão; para
-  os demais usuários, `superAdmin` é uma opção explícita no `CreateUsuarioDto`.
+
+### Administração de plataforma: `superAdmin` e `SuperAdminGuard`
+
+- **`superAdmin`** (`Usuario.superAdmin`) é o flag de administrador da
+  **plataforma** (equipe interna do SaaS, cross-tenant) — não é "super
+  usuário da própria empresa". Quem tem esse flag ignora `PermissionsGuard`
+  e `LojaAccessGuard` completamente (acesso irrestrito a todas as lojas *da
+  própria empresa*, sem precisar de `UsuarioLoja` por loja) — isso não
+  mudou. O que mudou é **quem recebe o flag**: o onboarding público
+  (`POST /empresas`) nunca concede `superAdmin` a ninguém; o único caminho é
+  `prisma/seed.ts` (`criarAdminPlataformaSeNaoExistir`) ou concessão manual
+  via banco/suporte.
+- `SuperAdminGuard` (`src/common/guards/super-admin.guard.ts`) é um guard
+  independente do sistema de `@Permissions()`: só verifica
+  `request.user.superAdmin === true`, lançando `ForbiddenException` caso
+  contrário. Aplicado via `@UseGuards(SuperAdminGuard)` diretamente nas
+  rotas que são administração da plataforma, não do tenant:
+  `GET /empresas`, `GET /empresas/:id` (`EmpresasController`) e todo o CRUD
+  de escrita de `/planos` (`PlanosController.create/update/remove`). Essas
+  rotas **não** usam `@Permissions(PERMISSIONS.ADMIN.*)` — as entradas de
+  `PERMISSIONS.ADMIN` (`admin.empresas.listar`, `admin.planos.gerenciar`)
+  existem só como espelho do catálogo/seed, não gateiam nenhuma rota.
+- Escalação de privilégio é bloqueada em `POST /usuarios`
+  (`UsuariosController.create` passa `request.user.superAdmin` como
+  `atorSuperAdmin` para `UsuariosService.create`): se o body pede
+  `superAdmin: true` e quem está chamando não é `superAdmin`, o service
+  lança `ForbiddenException`. Um admin comum de uma empresa (papel
+  "Administrador", permissão `cadastros.usuarios.criar`) não consegue criar
+  outro usuário com esse flag. `PATCH /usuarios/:id` nunca expôs esse campo.
+- `Usuario.empresaId` é obrigatório no schema, então até um admin de
+  plataforma precisa "pertencer" a uma empresa — o seed usa uma empresa
+  interna dedicada só para isso (ver `modelo-dados.md`/`modulos.md`).
 
 ## Autenticação e sessão
 
@@ -109,11 +175,30 @@ por isso são declarados nessa ordem em `app.module.ts`.
 
 ## Onboarding de um tenant
 
-`POST /empresas` é a única rota `@Public()` que grava dados de negócio. Em
-uma única transação (`EmpresasService.create`) ela cria: a `Empresa`, uma
-`Loja` matriz (`codigo: 'MATRIZ'`), o `Papel` "Administrador" com **todas**
-as permissões do catálogo atual, e o `Usuario` administrador
-(`superAdmin: true`) já vinculado à loja matriz. O controller
-(`EmpresasController.create`) então chama `AuthService.login` com as
-credenciais recém-criadas e devolve os tokens — o cliente sai do signup já
-autenticado.
+`POST /empresas` é a única rota `@Public()` que grava dados de negócio.
+`EmpresasController.create` delega para `EmpresasService.create`, que valida
+o plano informado e roda o resto numa única transação chamando
+`onboardTenant()` (`src/empresas/tenant-onboarding.ts`) — a mesma função
+usada por `prisma/seed.ts` para a empresa de demonstração
+(`criarEmpresaDemoSeNaoExistir`). Ter a lógica num único helper compartilhado
+existe justamente para não repetir o bug que motivou essa extração: as duas
+origens (onboarding público e seed) chegaram a duplicar quase a mesma lógica
+e ambas concediam, por acidente, permissões e o flag de administração de
+**plataforma** a um usuário de **tenant**.
+
+`onboardTenant(tx, dados)` cria, na transação recebida:
+
+- a `Empresa`;
+- a `Loja` matriz (`codigo: 'MATRIZ'`);
+- o `Papel` "Administrador", com **todas as permissões cujo `modulo` não
+  esteja em `MODULOS_PLATAFORMA`** (hoje isso exclui só `ADMIN`) — ele
+  administra a própria empresa (usuários, papéis, lojas, cadastros), nunca a
+  plataforma;
+- o `Usuario` administrador, **sempre com `superAdmin: false`** — o
+  onboarding público nunca concede o flag de administrador de plataforma;
+- o vínculo `UsuarioLoja` do admin com a loja matriz, usando o papel recém-criado.
+
+Depois da transação, `EmpresasController.create` chama `AuthService.login`
+com as credenciais recém-criadas e devolve os tokens — o cliente sai do
+signup já autenticado, só que agora como admin da própria empresa, nunca
+como admin da plataforma.

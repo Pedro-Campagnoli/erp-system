@@ -57,3 +57,11 @@ por já estarem prontos no schema/infra à espera de uso:
   código faz.
 - Os códigos de permissão já semeados são só um ponto de partida; revisar
   se cobrem todas as ações do módulo antes de implementar os controllers.
+- `FISCAL`, `FINANCEIRO`, `ESTOQUE` e `VENDAS` são módulos de **tenant**
+  (cada empresa opera o próprio fiscal/financeiro/estoque/vendas) — gateados
+  por `@Permissions()` normal, nunca por `SuperAdminGuard`. Não adicione
+  nenhum deles a `MODULOS_PLATAFORMA`
+  (`src/common/constants/permissions.constant.ts`): essa lista é reservada
+  para administração da plataforma (hoje só `ADMIN`) e qualquer módulo nela
+  fica automaticamente inelegível para papéis de empresa (ver
+  `arquitetura.md`, "RBAC: dois níveis de administração").

@@ -33,6 +33,16 @@ de soft delete. `statusAssinatura` (enum `StatusAssinatura`: `TRIAL`,
 existem no schema mas **não há nenhuma lógica de billing implementada** —
 são campos reservados para um futuro módulo de cobrança recorrente.
 
+Exceção conceitual: o registro semeado com `cnpj: EMPRESA_PLATAFORMA_CNPJ`
+(`prisma/seed.ts`, `criarAdminPlataformaSeNaoExistir`) não é um tenant
+cliente — existe só para satisfazer a FK obrigatória `Usuario.empresaId` do
+admin de plataforma (`superAdmin: true`), já que o schema não tem
+`empresaId` opcional para esse caso. Não há nenhuma flag no modelo que
+marque essa distinção (é só uma convenção de CNPJ/seed); se isso incomodar a
+longo prazo, o próximo passo seria avaliar tornar `Usuario.empresaId`
+opcional para usuários de plataforma — deliberadamente fora do escopo desta
+correção de RBAC.
+
 ### `Loja`
 
 Unidade operacional de uma empresa. `tipo` é `MATRIZ` ou `FILIAL`
@@ -45,13 +55,23 @@ delete via `deletedAt` (`LojasService.remove` só marca `ativo: false` e
 
 ### `Usuario`
 
-Pertence a uma única `Empresa` (`empresaId` obrigatório). `email` é único
+Pertence a uma única `Empresa` (`empresaId` obrigatório, sem exceção —
+inclusive para admins de plataforma, ver abaixo). `email` é único
 **globalmente**, não por empresa — não é possível reaproveitar o mesmo
 e-mail em duas empresas diferentes. `senha` é hash bcrypt
-(`bcryptSaltRounds`, configurável). `superAdmin` é o flag de acesso
-irrestrito descrito em `arquitetura.md` — note que ele não aparece em
-nenhuma tabela de junção, é uma coluna simples em `Usuario`. Soft delete via
-`deletedAt`.
+(`bcryptSaltRounds`, configurável). Soft delete via `deletedAt`.
+
+`superAdmin` é estritamente o flag de **administrador da plataforma**
+(equipe interna do SaaS, cross-tenant, ver `arquitetura.md`) — não "super
+usuário da própria empresa". Não aparece em nenhuma tabela de junção, é uma
+coluna simples. Só duas origens concedem esse flag: `prisma/seed.ts`
+(`criarAdminPlataformaSeNaoExistir`, cria também uma empresa interna
+dedicada — `EMPRESA_PLATAFORMA_CNPJ` — só para satisfazer a FK obrigatória
+`empresaId`) ou concessão manual via banco/suporte. `POST /usuarios`
+(`UsuariosService.create`) rejeita `superAdmin: true` no body a menos que
+quem está chamando já seja `superAdmin` (`ForbiddenException` — escalação de
+privilégio). **O onboarding público de uma empresa (`POST /empresas`) nunca
+concede esse flag** — ver `onboardTenant` em `arquitetura.md`.
 
 ### `RefreshToken`
 
@@ -69,6 +89,16 @@ Semeado por `prisma/seed.ts`, nunca criado pela API — não existe endpoint de
 escrita para `Permissao`, só `GET /permissoes` (catálogo de leitura, aberto
 a qualquer usuário autenticado, usado para montar telas de atribuição de
 papel).
+
+`modulo` não é só metadado informativo: `MODULOS_PLATAFORMA`
+(`src/common/constants/permissions.constant.ts` — hoje `[ADMIN]`) é a fonte
+de verdade em código para "essa permissão é de administração da
+plataforma". Qualquer `Permissao` cujo `modulo` esteja nessa lista nunca
+pode ser atribuída a um `Papel` de uma empresa — nem manualmente
+(`PapeisService` rejeita), nem automaticamente no onboarding
+(`onboardTenant` filtra explicitamente por `modulo: { notIn: [...] }` ao
+montar o papel "Administrador"). Ver `arquitetura.md` ("RBAC: dois níveis de
+administração").
 
 ### `Papel`
 
