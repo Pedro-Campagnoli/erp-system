@@ -9,15 +9,18 @@ import {
   Patch,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
-import { Permissions } from '../common/decorators/permissions.decorator';
-import { PERMISSIONS } from '../common/constants/permissions.constant';
+import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import { CreatePlanoDto } from './dto/create-plano.dto';
 import { UpdatePlanoDto } from './dto/update-plano.dto';
 import { PlanosService } from './planos.service';
 
+// CRUD de planos é administração da PLATAFORMA (planos de assinatura
+// globais, não de uma empresa) — protegido por `SuperAdminGuard`, não pelo
+// sistema de permissões por tenant. Ver `src/common/guards/super-admin.guard.ts`.
 @ApiTags('planos')
 @Controller('planos')
 export class PlanosController {
@@ -37,19 +40,19 @@ export class PlanosController {
     return this.planosService.findOne(id);
   }
 
-  @Permissions(PERMISSIONS.ADMIN.GERENCIAR_PLANOS)
+  @UseGuards(SuperAdminGuard)
   @Post()
   create(@Body() dto: CreatePlanoDto) {
     return this.planosService.create(dto);
   }
 
-  @Permissions(PERMISSIONS.ADMIN.GERENCIAR_PLANOS)
+  @UseGuards(SuperAdminGuard)
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdatePlanoDto) {
     return this.planosService.update(id, dto);
   }
 
-  @Permissions(PERMISSIONS.ADMIN.GERENCIAR_PLANOS)
+  @UseGuards(SuperAdminGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
   @Delete(':id')
   remove(@Param('id') id: string) {

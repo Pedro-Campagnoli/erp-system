@@ -1,19 +1,20 @@
 import {
   Body,
   Controller,
-  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from '../auth/auth.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions.constant';
-import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
+import { SuperAdminGuard } from '../common/guards/super-admin.guard';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
 import { EmpresasService } from './empresas.service';
@@ -28,6 +29,9 @@ export class EmpresasController {
 
   // Onboarding público de um novo tenant: cria a empresa, a loja matriz e o
   // usuário administrador, e já retorna os tokens de acesso (signup + login).
+  // Throttle mais estrito que o padrão global: signup é caro (grava dados) e
+  // não deveria ser usado para enumerar/forçar CNPJs ou e-mails.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @Post()
   async create(@Body() dto: CreateEmpresaDto) {
@@ -38,7 +42,10 @@ export class EmpresasController {
     });
   }
 
-  @Permissions(PERMISSIONS.ADMIN.LISTAR_EMPRESAS)
+  // Rota de administração da PLATAFORMA (lista todas as empresas clientes) —
+  // ver `SuperAdminGuard`: não é gateada pelo sistema de permissões por
+  // tenant, exige `usuario.superAdmin === true`.
+  @UseGuards(SuperAdminGuard)
   @Get()
   findAll() {
     return this.empresasService.findAll();
@@ -49,20 +56,17 @@ export class EmpresasController {
     return this.empresasService.findOne(empresaId);
   }
 
+  @Permissions(PERMISSIONS.CADASTROS.EDITAR_EMPRESA)
   @Patch('me')
   updateMe(
-    @CurrentUser() usuario: AuthenticatedUser,
+    @CurrentUser('empresaId') empresaId: string,
     @Body() dto: UpdateEmpresaDto,
   ) {
-    if (!usuario.superAdmin) {
-      throw new ForbiddenException(
-        'Apenas administradores podem editar os dados da empresa',
-      );
-    }
-    return this.empresasService.update(usuario.empresaId, dto);
+    return this.empresasService.update(empresaId, dto);
   }
 
-  @Permissions(PERMISSIONS.ADMIN.LISTAR_EMPRESAS)
+  // Rota de administração da PLATAFORMA — ver comentário em `findAll`.
+  @UseGuards(SuperAdminGuard)
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.empresasService.findOne(id);

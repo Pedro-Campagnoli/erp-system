@@ -44,9 +44,10 @@ export class UsuariosController {
   @Post()
   create(
     @CurrentUser('empresaId') empresaId: string,
+    @CurrentUser('superAdmin') atorSuperAdmin: boolean,
     @Body() dto: CreateUsuarioDto,
   ) {
-    return this.usuariosService.create(empresaId, dto);
+    return this.usuariosService.create(empresaId, dto, atorSuperAdmin);
   }
 
   @Get()

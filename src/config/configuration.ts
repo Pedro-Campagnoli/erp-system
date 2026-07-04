@@ -10,6 +10,11 @@ export interface AppConfig {
     refreshExpiresIn: string;
   };
   bcryptSaltRounds: number;
+  // Liga as rotas de apoio a testes E2E (`src/testing/`) e a documentação
+  // Swagger (`/api/docs`). Deliberadamente uma flag explícita, não derivada
+  // de `NODE_ENV !== 'production'` — qualquer ambiente de staging/homologação
+  // que não use exatamente a string "production" ficaria exposto por engano.
+  enableTestingRoutes: boolean;
 }
 
 export default (): AppConfig => ({
@@ -24,4 +29,5 @@ export default (): AppConfig => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '7d',
   },
   bcryptSaltRounds: parseInt(process.env.BCRYPT_SALT_ROUNDS ?? '10', 10),
+  enableTestingRoutes: process.env.ENABLE_TESTING_ROUTES === 'true',
 });

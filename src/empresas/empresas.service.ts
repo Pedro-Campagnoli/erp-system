@@ -9,6 +9,7 @@ import { toJsonInput } from '../common/utils/json.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { UpdateEmpresaDto } from './dto/update-empresa.dto';
+import { onboardTenant } from './tenant-onboarding';
 
 @Injectable()
 export class EmpresasService {
@@ -19,8 +20,10 @@ export class EmpresasService {
 
   /**
    * Onboarding de um novo tenant: cria a Empresa, a loja matriz, o papel de
-   * Administrador (com todas as permissões do catálogo) e o usuário admin,
-   * já vinculado à loja matriz — tudo em uma única transação.
+   * Administrador (com todas as permissões de escopo de tenant — nunca as de
+   * plataforma) e o usuário admin da empresa, já vinculado à loja matriz —
+   * tudo em uma única transação. Lógica compartilhada com a empresa de
+   * demonstração do seed via `onboardTenant` (ver `tenant-onboarding.ts`).
    */
   async create(dto: CreateEmpresaDto) {
     const plano = await this.prisma.plano.findUnique({
@@ -32,73 +35,28 @@ export class EmpresasService {
 
     const saltRounds = this.configService.get<number>('bcryptSaltRounds')!;
     const senhaHash = await bcrypt.hash(dto.usuarioAdmin.senha, saltRounds);
-    const todasPermissoes = await this.prisma.permissao.findMany({
-      select: { id: true },
-    });
 
-    const empresa = await this.prisma.$transaction(async (tx) => {
-      const novaEmpresa = await tx.empresa.create({
-        data: {
-          cnpj: dto.cnpj,
-          razaoSocial: dto.razaoSocial,
-          nomeFantasia: dto.nomeFantasia,
-          inscricaoEstadual: dto.inscricaoEstadual,
-          email: dto.email,
-          telefone: dto.telefone,
-          endereco: toJsonInput(dto.endereco),
-          planoId: plano.id,
-        },
-      });
-
-      const lojaMatriz = await tx.loja.create({
-        data: {
-          empresaId: novaEmpresa.id,
-          codigo: 'MATRIZ',
-          nome: dto.nomeFantasia ?? dto.razaoSocial,
-          tipo: 'MATRIZ',
-          cnpj: dto.cnpj,
-          email: dto.email,
-          telefone: dto.telefone,
-          endereco: toJsonInput(dto.endereco),
-        },
-      });
-
-      const papelAdmin = await tx.papel.create({
-        data: {
-          empresaId: novaEmpresa.id,
-          nome: 'Administrador',
-          descricao: 'Acesso completo a todos os módulos e lojas da empresa',
-          sistema: true,
-          permissoes: {
-            create: todasPermissoes.map((permissao) => ({
-              permissaoId: permissao.id,
-            })),
-          },
-        },
-      });
-
-      const usuarioAdmin = await tx.usuario.create({
-        data: {
-          empresaId: novaEmpresa.id,
+    const resultado = await this.prisma.$transaction((tx) =>
+      onboardTenant(tx, {
+        cnpj: dto.cnpj,
+        razaoSocial: dto.razaoSocial,
+        nomeFantasia: dto.nomeFantasia,
+        inscricaoEstadual: dto.inscricaoEstadual,
+        email: dto.email,
+        telefone: dto.telefone,
+        endereco: dto.endereco,
+        planoId: plano.id,
+        admin: {
           nome: dto.usuarioAdmin.nome,
           email: dto.usuarioAdmin.email,
-          senha: senhaHash,
-          superAdmin: true,
+          senhaHash,
         },
-      });
+      }),
+    );
 
-      await tx.usuarioLoja.create({
-        data: {
-          usuarioId: usuarioAdmin.id,
-          lojaId: lojaMatriz.id,
-          papelId: papelAdmin.id,
-        },
-      });
-
-      return novaEmpresa;
+    return this.prisma.empresa.findUniqueOrThrow({
+      where: { id: resultado.empresaId },
     });
-
-    return empresa;
   }
 
   findAll() {

@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthService } from './auth.service';
@@ -13,6 +14,9 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // Throttle mais estrito que o padrão global: login é o principal alvo de
+  // força bruta/credential stuffing.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('login')
@@ -20,6 +24,7 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Public()
   @HttpCode(HttpStatus.OK)
   @Post('refresh')

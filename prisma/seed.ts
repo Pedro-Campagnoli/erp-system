@@ -2,6 +2,7 @@ import 'dotenv/config';
 import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { ModuloSistema, PrismaClient } from '../generated/prisma/client';
+import { onboardTenant } from '../src/empresas/tenant-onboarding';
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -14,10 +15,18 @@ const EMPRESA_DEMO_CNPJ = '11222333000181';
 const EMPRESA_DEMO_ADMIN_EMAIL = 'admin@demo.com';
 const EMPRESA_DEMO_ADMIN_SENHA = 'Demo@123';
 
+// Empresa interna (não é um tenant cliente) só para satisfazer a FK
+// obrigatória `Usuario.empresaId` do admin de plataforma — ver
+// `criarAdminPlataformaSeNaoExistir`.
+const EMPRESA_PLATAFORMA_CNPJ = '11444777000080';
+const PLATAFORMA_ADMIN_EMAIL = 'plataforma@erp.internal';
+const PLATAFORMA_ADMIN_SENHA = 'Plataforma@123';
+
 const PERMISSOES = [
   { codigo: 'admin.planos.gerenciar', modulo: ModuloSistema.ADMIN, descricao: 'Gerenciar planos de assinatura' },
   { codigo: 'admin.empresas.listar', modulo: ModuloSistema.ADMIN, descricao: 'Listar todas as empresas da plataforma' },
 
+  { codigo: 'cadastros.empresa.editar', modulo: ModuloSistema.CADASTROS, descricao: 'Editar os dados cadastrais da própria empresa' },
   { codigo: 'cadastros.lojas.criar', modulo: ModuloSistema.CADASTROS, descricao: 'Criar lojas' },
   { codigo: 'cadastros.lojas.editar', modulo: ModuloSistema.CADASTROS, descricao: 'Editar lojas' },
   { codigo: 'cadastros.lojas.excluir', modulo: ModuloSistema.CADASTROS, descricao: 'Excluir lojas' },
@@ -89,8 +98,9 @@ async function criarPapelSistemaSeNaoExistir(
 /**
  * Empresa + loja matriz + usuário admin para testar a API localmente sem
  * precisar rodar o onboarding (`POST /empresas`) manualmente toda vez.
- * Reproduz o mesmo fluxo de `EmpresasService.create` (plano, loja matriz,
- * papel Administrador com todas as permissões, usuário superAdmin).
+ * Usa o mesmo `onboardTenant` de `EmpresasService.create` — este admin é um
+ * admin DA EMPRESA (não da plataforma): recebe todas as permissões de
+ * escopo de tenant, mas nunca `superAdmin` nem permissões de módulo `ADMIN`.
  */
 async function criarEmpresaDemoSeNaoExistir() {
   const existente = await prisma.empresa.findUnique({
@@ -103,66 +113,83 @@ async function criarEmpresaDemoSeNaoExistir() {
   const plano = await prisma.plano.findUniqueOrThrow({
     where: { slug: 'profissional' },
   });
-  const todasPermissoes = await prisma.permissao.findMany({
-    select: { id: true },
-  });
   const senhaHash = await bcrypt.hash(EMPRESA_DEMO_ADMIN_SENHA, BCRYPT_SALT_ROUNDS);
 
-  await prisma.$transaction(async (tx) => {
-    const empresa = await tx.empresa.create({
-      data: {
-        cnpj: EMPRESA_DEMO_CNPJ,
-        razaoSocial: 'Empresa Demonstração LTDA',
-        nomeFantasia: 'Empresa Demo',
-        email: 'contato@demo.com',
-        planoId: plano.id,
-      },
-    });
-
-    const lojaMatriz = await tx.loja.create({
-      data: {
-        empresaId: empresa.id,
-        codigo: 'MATRIZ',
-        nome: 'Loja Matriz',
-        tipo: 'MATRIZ',
-        cnpj: EMPRESA_DEMO_CNPJ,
-        email: 'contato@demo.com',
-      },
-    });
-
-    const papelAdmin = await tx.papel.create({
-      data: {
-        empresaId: empresa.id,
-        nome: 'Administrador',
-        descricao: 'Acesso completo a todos os módulos e lojas da empresa',
-        sistema: true,
-        permissoes: {
-          create: todasPermissoes.map((p) => ({ permissaoId: p.id })),
-        },
-      },
-    });
-
-    const usuarioAdmin = await tx.usuario.create({
-      data: {
-        empresaId: empresa.id,
+  await prisma.$transaction((tx) =>
+    onboardTenant(tx, {
+      cnpj: EMPRESA_DEMO_CNPJ,
+      razaoSocial: 'Empresa Demonstração LTDA',
+      nomeFantasia: 'Empresa Demo',
+      email: 'contato@demo.com',
+      planoId: plano.id,
+      admin: {
         nome: 'Admin Demo',
         email: EMPRESA_DEMO_ADMIN_EMAIL,
-        senha: senhaHash,
-        superAdmin: true,
+        senhaHash,
       },
-    });
-
-    await tx.usuarioLoja.create({
-      data: {
-        usuarioId: usuarioAdmin.id,
-        lojaId: lojaMatriz.id,
-        papelId: papelAdmin.id,
-      },
-    });
-  });
+    }),
+  );
 
   console.log(
     `Empresa de demonstração criada (login: ${EMPRESA_DEMO_ADMIN_EMAIL} / ${EMPRESA_DEMO_ADMIN_SENHA}).`,
+  );
+}
+
+/**
+ * Usuário admin da PLATAFORMA (`superAdmin: true`) — equipe interna, não um
+ * cliente. Alimenta o futuro painel de administração da plataforma (listar
+ * todas as empresas clientes, gerenciar planos globais — rotas protegidas
+ * por `SuperAdminGuard`). Só existe este caminho de bootstrap: a API nunca
+ * concede `superAdmin` a ninguém que já não seja `superAdmin`
+ * (`UsuariosService.create`) e o onboarding público (`POST /empresas`)
+ * nunca concede o flag (`onboardTenant`) — de propósito, para não repetir o
+ * vazamento de permissões de plataforma que este seed corrigiu.
+ *
+ * `Usuario.empresaId` é obrigatório no schema atual, então mesmo um admin
+ * de plataforma precisa "pertencer" a uma empresa — usamos uma empresa
+ * interna dedicada (`EMPRESA_PLATAFORMA_CNPJ`), que não é um tenant cliente.
+ * Se isso for indesejável a longo prazo, o próximo passo é avaliar tornar
+ * `Usuario.empresaId` opcional para usuários de plataforma (mudança de
+ * schema deliberadamente fora desta correção).
+ */
+async function criarAdminPlataformaSeNaoExistir() {
+  const existente = await prisma.usuario.findUnique({
+    where: { email: PLATAFORMA_ADMIN_EMAIL },
+  });
+  if (existente) {
+    return;
+  }
+
+  const plano = await prisma.plano.findUniqueOrThrow({
+    where: { slug: 'enterprise' },
+  });
+
+  const empresaPlataforma = await prisma.empresa.upsert({
+    where: { cnpj: EMPRESA_PLATAFORMA_CNPJ },
+    create: {
+      cnpj: EMPRESA_PLATAFORMA_CNPJ,
+      razaoSocial: 'Operação da Plataforma (interno)',
+      nomeFantasia: 'Plataforma',
+      email: 'plataforma@erp.internal',
+      planoId: plano.id,
+    },
+    update: {},
+  });
+
+  const senhaHash = await bcrypt.hash(PLATAFORMA_ADMIN_SENHA, BCRYPT_SALT_ROUNDS);
+
+  await prisma.usuario.create({
+    data: {
+      empresaId: empresaPlataforma.id,
+      nome: 'Admin Plataforma',
+      email: PLATAFORMA_ADMIN_EMAIL,
+      senha: senhaHash,
+      superAdmin: true,
+    },
+  });
+
+  console.log(
+    `Admin de plataforma criado (login: ${PLATAFORMA_ADMIN_EMAIL} / ${PLATAFORMA_ADMIN_SENHA}).`,
   );
 }
 
@@ -199,6 +226,7 @@ async function main() {
   await criarPapelSistemaSeNaoExistir('Operador', 'Acesso operacional básico, sem permissões administrativas', []);
 
   await criarEmpresaDemoSeNaoExistir();
+  await criarAdminPlataformaSeNaoExistir();
 
   console.log('Seed concluído com sucesso.');
 }
