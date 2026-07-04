@@ -139,7 +139,9 @@ catálogo de permissões).
    (HTTP + `@Permissions()`/`@Public()`/`@RequireLoja()` conforme o caso),
    service com a regra de negócio e o filtro de `empresaId`/`lojaId`, DTOs
    usando os validators de `src/common/validators/`. Registrar o módulo em
-   `AppModule.imports`.
+   `AppModule.imports`. Adicionar `@ApiTags('<modulo>')` no controller — o
+   plugin do NestJS CLI (`nest-cli.json`) já infere `@ApiProperty` dos DTOs
+   automaticamente, não precisa decorar campo a campo (ver skill `swagger`).
 4. **Permissões no seed**: adicionar os códigos novos em `PERMISSOES`
    (`prisma/seed.ts`) usando o `ModuloSistema` correspondente, e espelhá-los
    em `src/common/constants/permissions.constant.ts` (`PERMISSIONS`) — os

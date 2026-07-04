@@ -1,4 +1,5 @@
 import { Controller, Delete, HttpCode, HttpStatus, Param } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -7,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
  * entre execuções sem precisar de acesso direto ao banco. Nunca registrado em
  * produção — ver o import condicional em `app.module.ts`.
  */
+@ApiTags('testing')
 @Controller('testing')
 export class TestingController {
   constructor(private readonly prisma: PrismaService) {}

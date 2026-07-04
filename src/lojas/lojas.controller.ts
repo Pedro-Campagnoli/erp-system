@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions.constant';
@@ -17,6 +18,7 @@ import { CreateLojaDto } from './dto/create-loja.dto';
 import { UpdateLojaDto } from './dto/update-loja.dto';
 import { LojasService } from './lojas.service';
 
+@ApiTags('lojas')
 @Controller('lojas')
 export class LojasController {
   constructor(private readonly lojasService: LojasService) {}

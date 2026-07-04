@@ -10,6 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions.constant';
@@ -17,6 +18,7 @@ import { CreatePlanoDto } from './dto/create-plano.dto';
 import { UpdatePlanoDto } from './dto/update-plano.dto';
 import { PlanosService } from './planos.service';
 
+@ApiTags('planos')
 @Controller('planos')
 export class PlanosController {
   constructor(private readonly planosService: PlanosService) {}

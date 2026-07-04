@@ -10,6 +10,7 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Permissions } from '../common/decorators/permissions.decorator';
 import { PERMISSIONS } from '../common/constants/permissions.constant';
@@ -18,6 +19,7 @@ import { CreatePapelDto } from './dto/create-papel.dto';
 import { UpdatePapelDto } from './dto/update-papel.dto';
 import { PapeisService } from './papeis.service';
 
+@ApiTags('papeis')
 @Controller('papeis')
 export class PapeisController {
   constructor(private readonly papeisService: PapeisService) {}
